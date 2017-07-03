@@ -1,0 +1,10 @@
+language: rust
+rust:
+    - nightly
+
+before_script:
+    - cd rust-chat-server/ 
+
+script:
+    - cd rust-chat-server/
+    - cargo build
