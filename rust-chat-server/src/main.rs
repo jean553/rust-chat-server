@@ -1,3 +1,6 @@
+use std::net::{TcpListener};
+
 fn main() {
-    println!("Hello, world!");
+
+    let listener = TcpListener::bind("127.0.0.1:9090").unwrap();
 }
