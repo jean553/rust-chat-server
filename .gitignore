@@ -1,3 +1,4 @@
 Cargo.lock
-rust-exam/target
+rust-chat-server/target
 *.swp
+.vagrant/
