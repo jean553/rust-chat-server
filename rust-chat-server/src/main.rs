@@ -23,8 +23,8 @@ fn main() {
     for income in listener.incoming() {
 
         match income {
-            Ok(_) => {
-                println!("New client connected.");
+            Ok(stream) => {
+                handle_request(stream);
             }
             Err(_) => {
                 println!("Client connection failed.");
