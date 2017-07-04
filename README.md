@@ -19,3 +19,9 @@ vagrant ssh
 ```bash
 cargo run
 ```
+
+## Generate documentation
+
+```
+cargo rustdoc -- --no-defaults
+```
