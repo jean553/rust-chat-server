@@ -1,4 +1,20 @@
-use std::net::{TcpListener};
+//! Basic TCP server
+
+use std::net::{
+    TcpListener,
+    TcpStream,
+};
+
+/// Handles received TCP requests
+///
+/// TODO: define the function
+///
+/// # Arguments:
+///
+/// * `stream` - TCP stream between the server and the new connected client
+fn handle_request(stream: TcpStream) {
+    println!("New client connected.");
+}
 
 fn main() {
 
@@ -7,8 +23,8 @@ fn main() {
     for income in listener.incoming() {
 
         match income {
-            Ok(_) => {
-                println!("New client connected.");
+            Ok(stream) => {
+                handle_request(stream);
             }
             Err(_) => {
                 println!("Client connection failed.");
