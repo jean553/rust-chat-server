@@ -15,8 +15,9 @@ use std::io::Write;
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
-fn handle_request(stream: TcpStream) {
-    println!("New client connected.");
+fn handle_request(mut stream: TcpStream) {
+
+    stream.write("Welcome to rust-chat-server".as_bytes()).unwrap();
 }
 
 fn main() {
@@ -27,7 +28,16 @@ fn main() {
 
         match income {
             Ok(stream) => {
-                handle_request(stream);
+
+                let client_address = stream.peer_addr().unwrap();
+                println!(
+                    "New client connected: {}",
+                    client_address,
+                );
+
+                spawn(|| {
+                    handle_request(stream);
+                });
             }
             Err(_) => {
                 println!("Client connection failed.");
