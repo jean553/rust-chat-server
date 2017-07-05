@@ -38,6 +38,11 @@ fn handle_request(
         match request {
             Ok(_) => {
 
+                const NEXT_LINE_BYTE: u8 = 10;
+                if bytes[0] == NEXT_LINE_BYTE {
+                    break;
+                }
+
                 println!(
                     "Client {} sent message:",
                     client_id,
