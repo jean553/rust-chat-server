@@ -9,7 +9,7 @@ use std::thread::spawn;
 use std::io::{
     Write,
     BufReader,
-    BufRead,
+    Read,
 };
 
 /// Handles received TCP requests
@@ -27,25 +27,41 @@ fn handle_request(
     stream.write("Welcome to rust-chat-server\n".as_bytes()).unwrap();
 
     let mut buffer = BufReader::new(stream);
-    let mut message = String::new();
+
+    const BYTES_PER_MESSAGE: usize = 20;
+    let mut bytes: [u8; BYTES_PER_MESSAGE] = [0; BYTES_PER_MESSAGE];
 
     loop {
 
-        let request = buffer.read_line(&mut message); // blocking IO
+        let request = buffer.read(&mut bytes); // blocking IO
 
         match request {
-            Ok(req) => {
+            Ok(_) => {
+
+                const NEXT_LINE_BYTE: u8 = 10;
+                if bytes[0] == NEXT_LINE_BYTE {
+                    break;
+                }
+
                 println!(
-                    "Client {} sent message: {}",
+                    "Client {} sent message:",
                     client_id,
-                    req,
                 );
+
+                for &byte in bytes.iter() {
+                    println!("{}", byte);
+                }
+
+                bytes = [0; BYTES_PER_MESSAGE];
             }
             _ => {
+
                 println!(
                     "Error: cannot read message from client {}",
                     client_id,
                 );
+
+                break;
             }
         }
     }
