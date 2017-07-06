@@ -25,3 +25,9 @@ cargo run
 ```
 cargo rustdoc -- --no-defaults
 ```
+
+## Send messages from your host
+
+```bash
+nc localhost 9090
+```
