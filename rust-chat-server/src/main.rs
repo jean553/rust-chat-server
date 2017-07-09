@@ -12,6 +12,8 @@ use std::io::{
     BufRead,
 };
 
+use std::sync::mpsc;
+
 /// Handles received TCP requests
 ///
 /// TODO: define the function
@@ -23,6 +25,7 @@ use std::io::{
 fn handle_request(
     mut stream: TcpStream,
     client_id: u8,
+    sender: mpsc::Sender<String>,
 ) {
     stream.write("Welcome to rust-chat-server\n".as_bytes()).unwrap();
 
@@ -45,24 +48,58 @@ fn handle_request(
                         break;
                     },
                     Some(&_) => {
-                        println!(
+
+                        let message_to_send = format!(
                             "Client {} sent message: {}",
                             client_id,
                             message,
                         );
 
-                        message.clear();
+                        match sender.send(message_to_send.to_string()) {
+                            Ok(_) => {
+                                message.clear();
+                            },
+                            Err(_) => {
+                                println!(
+                                    "Error: cannot read message from client {}",
+                                    client_id,
+                                );
+
+                                break;
+                            }
+                        };
                     }
                 };
             }
             _ => {
 
                 println!(
-                    "Error: cannot read message from client {}",
+                    "Error: cannot read request from client {}",
                     client_id,
                 );
 
                 break;
+            }
+        }
+    }
+}
+
+/// Started by an independant thread that listens
+/// for new messages and sends them to every thread
+///
+/// # Arguments:
+///
+/// * `receiver` - Channel receiver to get messages
+fn receive_messages(receiver: &mpsc::Receiver<String>) {
+
+    loop {
+        let message = receiver.recv(); // blocking IO
+
+        match message {
+            Ok(value) => {
+                println!("Received message: {}", value);
+            }
+            Err(_) => {
             }
         }
     }
@@ -73,6 +110,15 @@ fn main() {
     let listener = TcpListener::bind("0.0.0.0:9090").unwrap();
 
     let mut clients_count: u8 = 0;
+
+    let (sender, receiver): (
+        mpsc::Sender<String>,
+        mpsc::Receiver<String>
+    ) = mpsc::channel();
+
+    spawn(move || {
+        receive_messages(&receiver);
+    });
 
     for income in listener.incoming() {
 
@@ -85,10 +131,13 @@ fn main() {
                     client_address,
                 );
 
+                let sender = sender.clone();
+
                 spawn(move || {
                     handle_request(
                         stream,
                         clients_count,
+                        sender,
                     );
                 });
 
