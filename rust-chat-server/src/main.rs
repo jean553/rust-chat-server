@@ -12,6 +12,8 @@ use std::io::{
     BufRead,
 };
 
+use std::sync::mpsc;
+
 /// Handles received TCP requests
 ///
 /// TODO: define the function
@@ -73,6 +75,11 @@ fn main() {
     let listener = TcpListener::bind("0.0.0.0:9090").unwrap();
 
     let mut clients_count: u8 = 0;
+
+    let (sender, receiver): (
+        mpsc::Sender<String>,
+        mpsc::Receiver<String>
+    ) = mpsc::channel();
 
     for income in listener.incoming() {
 
