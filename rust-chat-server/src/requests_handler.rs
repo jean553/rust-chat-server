@@ -10,6 +10,44 @@ use std::io::{
 
 use std::sync::mpsc;
 
+/// Shares a received message to all threads
+///
+/// TODO: Finalize the function
+///
+/// Args:
+///
+/// * `client_id` - unique id of the handled client
+/// * `message` - the message posted by the client
+/// * `sender` - channel sender for communication between threads
+fn share_message(
+    client_id: u8,
+    message: &mut String,
+    sender: &mpsc::Sender<String>,
+) -> bool {
+
+    let message_to_send = format!(
+        "Client {} sent message: {}",
+        client_id,
+        message,
+    );
+
+    match sender.send(message_to_send.to_string()) {
+        Ok(_) => {
+            message.clear();
+        },
+        Err(_) => {
+            println!(
+                "Error: cannot read message from client {}",
+                client_id,
+            );
+
+            return false;
+        }
+    };
+
+    true
+}
+
 /// Handles received TCP requests
 ///
 /// TODO: define the function
@@ -45,25 +83,15 @@ pub fn handle_request(
                     },
                     Some(&_) => {
 
-                        let message_to_send = format!(
-                            "Client {} sent message: {}",
+                        let shared = share_message(
                             client_id,
-                            message,
+                            &mut message,
+                            &sender,
                         );
 
-                        match sender.send(message_to_send.to_string()) {
-                            Ok(_) => {
-                                message.clear();
-                            },
-                            Err(_) => {
-                                println!(
-                                    "Error: cannot read message from client {}",
-                                    client_id,
-                                );
-
-                                break;
-                            }
-                        };
+                        if !shared {
+                            break;
+                        }
                     }
                 };
             }
