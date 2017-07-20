@@ -17,6 +17,8 @@ fn main() {
         mpsc::Receiver<String>
     ) = mpsc::channel();
 
+    let mut senders: Vec<mpsc::Sender<String>> = Vec::new();
+
     spawn(move || {
         requests_handler::receive_messages(&receiver);
     });
