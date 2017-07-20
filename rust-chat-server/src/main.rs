@@ -2,7 +2,11 @@
 
 use std::net::TcpListener;
 use std::thread::spawn;
-use std::sync::mpsc;
+use std::sync::{
+    mpsc,
+    Mutex,
+    Arc,
+};
 
 mod requests_handler;
 
@@ -18,6 +22,8 @@ fn main() {
     ) = mpsc::channel();
 
     let mut senders: Vec<mpsc::Sender<String>> = Vec::new();
+    let mutex: Mutex<Vec<mpsc::Sender<String>>> = Mutex::new(senders);
+    let arc_senders: Arc<Mutex<Vec<mpsc::Sender<String>>>> = Arc::new(mutex);
 
     spawn(move || {
         requests_handler::receive_messages(&receiver);
