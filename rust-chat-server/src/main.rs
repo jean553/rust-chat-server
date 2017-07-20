@@ -21,12 +21,19 @@ fn main() {
         mpsc::Receiver<String>
     ) = mpsc::channel();
 
-    let mut senders: Vec<mpsc::Sender<String>> = Vec::new();
-    let mutex: Mutex<Vec<mpsc::Sender<String>>> = Mutex::new(senders);
-    let arc_senders: Arc<Mutex<Vec<mpsc::Sender<String>>>> = Arc::new(mutex);
+    type Senders = Vec<mpsc::Sender<String>>;
 
-    spawn(move || {
-        requests_handler::receive_messages(&receiver);
+    let senders: Senders = Vec::new();
+    let mutex: Mutex<Senders> = Mutex::new(senders);
+    let first_senders_list: Arc<Mutex<Senders>> = Arc::new(mutex);
+
+    let second_senders_list = first_senders_list.clone();
+
+    spawn(|| {
+        requests_handler::receive_messages(
+            receiver,
+            first_senders_list,
+        );
     });
 
     for income in listener.incoming() {
@@ -42,11 +49,33 @@ fn main() {
 
                 let sender = sender.clone();
 
+                let other_stream = stream.try_clone()
+                    .expect("Cannot clone TCP stream");
+
                 spawn(move || {
                     requests_handler::handle_request(
                         stream,
                         clients_count,
                         sender,
+                    );
+                });
+
+                let (
+                    writer_sender,
+                    writer_receiver
+                ): (
+                    mpsc::Sender<String>,
+                    mpsc::Receiver<String>
+                ) = mpsc::channel();
+
+                let mut guard = second_senders_list.lock().unwrap();
+                let mut senders = &mut *guard;
+                senders.push(writer_sender);
+
+                spawn(|| {
+                    requests_handler::send_to_client(
+                        other_stream,
+                        writer_receiver,
                     );
                 });
 
