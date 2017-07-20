@@ -8,13 +8,15 @@ use std::io::{
     BufRead,
 };
 
-use std::sync::mpsc;
+use std::sync::{
+    mpsc,
+    Mutex,
+    Arc,
+};
 
 /// Shares a received message to all threads
 ///
-/// TODO: Finalize the function
-///
-/// Args:
+/// # Arguments:
 ///
 /// * `client_id` - unique id of the handled client
 /// * `message` - the message posted by the client
@@ -50,12 +52,11 @@ fn share_message(
 
 /// Handles received TCP requests
 ///
-/// TODO: define the function
-///
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
 /// * `client_id` - unique id of the handled client
+/// * `sender` - the sender to uses to forward the received message
 pub fn handle_request(
     mut stream: TcpStream,
     client_id: u8,
@@ -114,18 +115,53 @@ pub fn handle_request(
 /// # Arguments:
 ///
 /// * `receiver` - Channel receiver to get messages
-pub fn receive_messages(receiver: &mpsc::Receiver<String>) {
+/// * `senders_arc` - Atomic reference-counting pointer for the senders array
+pub fn receive_messages(
+    receiver: mpsc::Receiver<String>,
+    senders_arc: Arc<Mutex<Vec<mpsc::Sender<String>>>>,
+) {
 
     loop {
         let message = receiver.recv(); // blocking IO
 
         match message {
             Ok(value) => {
-                println!("Received message: {}", value);
+
+                let guard = senders_arc.lock().unwrap();
+                let senders = &*guard;
+
+                for sender in senders {
+                    sender.send(value.to_string()).expect("cannot send messages");
+                }
             }
             Err(_) => {
             }
         }
+
     }
 }
 
+/// Sends received messages to all the clients
+///
+/// # Arguments:
+///
+/// * `stream` - TCP stream between the server and the new connected client
+/// * `receiver` - Channel receiver to get messages
+pub fn send_to_client(
+    mut stream: TcpStream,
+    receiver: mpsc::Receiver<String>,
+) {
+
+    loop {
+        let message = receiver.recv(); // blocking IO
+
+        match message {
+            Ok(value) => {
+                stream.write(value.as_bytes()).unwrap();
+            }
+            Err(_) => {
+            }
+        }
+
+    }
+}
