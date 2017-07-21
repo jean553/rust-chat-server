@@ -36,7 +36,23 @@ nc localhost 9090
 
 ### Architecture
 
-TODO: add schema
+```
++---------+     +--------------------+                                          +-----------------------+
+|  Client +----->  Thread and sender +--+                                  +---->  Thread and receiver  |
++---------+     +--------------------+  |                                  |    +-----------------------+
+                                        |    +---------------------------+ |
+                                        |    |  Unique thread to listen  | |
+                                        |    |     incoming messages     | |
++---------+     +--------------------+  |    |                           | |    +-----------------------+
+|  Client +----->  Thread and sender +------->                           +------>  Thread and receiver  |
++---------+     +--------------------+  |    |         Receiver          | |    +-----------------------+
+                                        |    |                           | |
+                                        |    |      Dynamic array        | |
+                                        |    |        of senders         | |
++---------+     +--------------------+  |    |                           | |    +-----------------------+
+|  Client +----->  Thread and sender +--+    +---------------------------+ +---->  Thread and receiver  |
++---------+     +--------------------+                                          +-----------------------+
+```
 
 ### 1 - Create the TCP listener
 
@@ -61,7 +77,7 @@ that all send data to an unique thread.
   |                                                      |
   |    Server         +--------------+                   |
   |                   |              |                   |
-  |                   | Unique thrad |                   |
+  |                   |Unique thread |                   |
   |                   |              |                   |
   |                   |   Receiver   |                   |
   |                   |              |                   |
@@ -102,3 +118,36 @@ We then create the dynamic array to store all the senders we will create.
 type Senders = Vec<mpsc::Sender<String>>;
 let senders: Senders = Vec::new();
 ```
+
+### 3 - Make our senders availables for all threads
+
+Each time a new user connect, we create a new sender for this user
+and store the sender into a dynamic array of senders.
+This is what our main thread does: the thread that handles incoming connections.
+
+There is a second thread that listen for incoming messages from all the clients
+threads and forward the messages to all the senders (in order to broadcast them
+to everybody).
+This is what the second thread does: send messages to every senders
+of the dynamic array threads.
+
+Two threads cannot access a `Vec<T>` at the same time (for concurrency safety reasons).
+This restriction is ensured by the `std::thread::spawn` method. It is not possible
+to pass a reference to a `Vec<T>` through the closure, so it ensures two threads
+will never try to access to the same data at the same moment.
+
+One way to pass the same `Vec<T>` to multiple threads is to wrap it
+into an atomic references counter (Arc), locking and unlocking the vector
+into each thread using a mutex.
+
+```rust
+type Senders = Vec<mpsc::Sender<String>>;
+
+let mutex: Mutex<Senders> = Mutex::new(senders);
+let first_senders_list: Arc<Mutex<Senders>> = Arc::new(mutex);
+let second_senders_list = first_senders_list.clone();
+```
+
+By this way, cloning the `Arc<T>` object creates a second reference
+to the same array. The two references can now access the array
+from two different threads safely (concurrent access is secured).
