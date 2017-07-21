@@ -65,7 +65,7 @@ let listener = TcpListener::bind("0.0.0.0:9090").unwrap();
 
 We use `unwrap` as we want the program to stop if the TCP socket cannot be opened.
 
-### 2 - Creates a dynamic array to store all the client senders
+### 2 - Create a dynamic array to store all the client senders
 
 Everytime a new client connects to the server, a new thread is started.
 The thread handles all the messages sent to the server from the client.
@@ -151,3 +151,46 @@ let second_senders_list = first_senders_list.clone();
 By this way, cloning the `Arc<T>` object creates a second reference
 to the same array. The two references can now access the array
 from two different threads safely (concurrent access is secured).
+
+### 4 - Create the unique thread that forward messages from any client to all senders
+
+An unique thread listens for any message received from any client
+and forwards it to all the senders that have been created (array of senders).
+
+```rust
+pub fn receive_messages(
+    receiver: mpsc::Receiver<String>,
+    senders_arc: Arc<Mutex<Vec<mpsc::Sender<String>>>>,
+) {
+
+    loop {
+        let message = receiver.recv(); // blocking
+
+        match message {
+            Ok(value) => {
+
+                /* lock the senders array for concurrent access */
+                let guard = senders_arc.lock().unwrap();
+                let senders = &*guard;
+
+                /* send the message to all the senders */
+                for sender in senders {
+                    sender.send(value.to_string()).expect("cannot send messages");
+                }
+            }
+            Err(_) => {
+            }
+        }
+    }
+}
+
+...
+
+/* start one thread */
+spawn(|| {
+    requests_handler::receive_messages(
+        receiver,
+        first_senders_list,
+    );
+});
+```
