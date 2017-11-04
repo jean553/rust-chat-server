@@ -18,18 +18,15 @@ use std::sync::{
 ///
 /// # Arguments:
 ///
-/// * `client_id` - unique id of the handled client
 /// * `message` - the message posted by the client
 /// * `sender` - channel sender for communication between threads
 fn share_message(
-    client_id: u8,
     message: &mut String,
     sender: &mpsc::Sender<String>,
 ) -> bool {
 
     let message_to_send = format!(
-        "Client {} sent message: {}",
-        client_id,
+        "Client sent message: {}",
         message,
     );
 
@@ -38,11 +35,7 @@ fn share_message(
             message.clear();
         },
         Err(_) => {
-            println!(
-                "Error: cannot read message from client {}",
-                client_id,
-            );
-
+            println!("Error: cannot read message from client");
             return false;
         }
     };
@@ -55,15 +48,11 @@ fn share_message(
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
-/// * `client_id` - unique id of the handled client
 /// * `sender` - the sender to uses to forward the received message
 pub fn handle_request(
-    mut stream: TcpStream,
-    client_id: u8,
+    stream: TcpStream,
     sender: mpsc::Sender<String>,
 ) {
-    stream.write("Welcome to rust-chat-server\n".as_bytes()).unwrap();
-
     let mut buffer = BufReader::new(stream);
     let mut message = String::new();
 
@@ -85,7 +74,6 @@ pub fn handle_request(
                     Some(&_) => {
 
                         let shared = share_message(
-                            client_id,
                             &mut message,
                             &sender,
                         );
@@ -98,10 +86,7 @@ pub fn handle_request(
             }
             _ => {
 
-                println!(
-                    "Error: cannot read request from client {}",
-                    client_id,
-                );
+                println!("Error: cannot read request from client");
 
                 break;
             }

@@ -57,7 +57,7 @@ fn main() {
     /* copy the senders mutex pointer as we move it
        right after when creating the listening thread
        and we still want to be able to access it
-       from the main thread*/
+       from the main thread */
     let senders_mutex_pointer_copy = senders_mutex_pointer.clone();
 
     /* create a thread that listens for all incoming messages
@@ -69,56 +69,63 @@ fn main() {
         );
     });
 
-    let mut clients_count = 0;
-
+    /* listener.incoming() returns an iterator to the TCP listeners clients;
+       the loop content is executed everytime a new client connects to the server;
+       the next() method returns Option<Result<TcpStream>>, so income is a Result<TcpStream> */
     for income in listener.incoming() {
 
-        match income {
-            Ok(stream) => {
-
-                let client_address = stream.peer_addr().unwrap();
-                println!(
-                    "New client connected: {}",
-                    client_address,
-                );
-
-                let sender = sender.clone();
-
-                let other_stream = stream.try_clone()
-                    .expect("Cannot clone TCP stream");
-
-                spawn(move || {
-                    handle_request(
-                        stream,
-                        clients_count,
-                        sender,
-                    );
-                });
-
-                let (
-                    writer_sender,
-                    writer_receiver
-                ): (
-                    Sender<String>,
-                    Receiver<String>
-                ) = channel();
-
-                let mut guard = senders_mutex_pointer_copy.lock().unwrap();
-                let mut senders = &mut *guard;
-                senders.push(writer_sender);
-
-                spawn(|| {
-                    send_to_client(
-                        other_stream,
-                        writer_receiver,
-                    );
-                });
-
-                clients_count += 1;
-            }
-            Err(_) => {
-                println!("Error: one client could not connect.");
-            }
+        /* silently ignore any error if the client connection failed */
+        if income.is_err() {
+            continue;
         }
+
+        /* get the TCP stream object from the connection
+           in order to use the connected client */
+        let stream = income.unwrap();
+
+        /* get the address and port of the remove peer of the given client */
+        let client_address = stream.peer_addr()
+            .unwrap();
+
+        println!(
+            "New client connected: {}",
+            client_address,
+        );
+
+        /* TODO: explain why */
+        let stream_copy = stream.try_clone()
+            .expect("Cannot clone TCP stream");
+
+        /* create a new sender from the channel sender;
+           there is one sender per client;
+           this new sender is also part of the unique receiver channel */
+        let sender_copy = sender.clone();
+
+        /* TODO: explain */
+        spawn(|| {
+            handle_request(
+                stream_copy,
+                sender_copy,
+            );
+        });
+
+        let (
+            writer_sender,
+            writer_receiver
+        ): (
+            Sender<String>,
+            Receiver<String>
+        ) = channel();
+
+        let mut guard = senders_mutex_pointer_copy.lock().unwrap();
+        let mut senders = &mut *guard;
+        senders.push(writer_sender);
+
+        spawn(|| {
+            send_to_client(
+                stream,
+                writer_receiver,
+            );
+        });
     }
 }
