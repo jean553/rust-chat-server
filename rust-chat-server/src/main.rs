@@ -46,17 +46,20 @@ fn main() {
        reference counted pointer; Arc<T> provides thread-safe shared ownership
        of the passed data; it can be copied through threads and always point
        to the same heap memory */
-    let senders_list: Arc<Mutex<Senders>> = Arc::new(senders_mutex);
+    let senders_mutex_pointer: Arc<Mutex<Senders>> = Arc::new(senders_mutex);
 
-    /* TODO: explanation */
-    let senders_list_copy = senders_list.clone();
+    /* copy the senders mutex pointer as we move it
+       right after when creating the listening thread
+       and we still want to be able to access it
+       from the main thread*/
+    let senders_mutex_pointer_copy = senders_mutex_pointer.clone();
 
     /* create a thread that listens for all incoming messages
        and forward them to every connected clients */
     spawn(|| {
         requests_handler::receive_messages(
             receiver,
-            senders_list,
+            senders_mutex_pointer,
         );
     });
 
@@ -94,7 +97,7 @@ fn main() {
                     Receiver<String>
                 ) = channel();
 
-                let mut guard = senders_list_copy.lock().unwrap();
+                let mut guard = senders_mutex_pointer_copy.lock().unwrap();
                 let mut senders = &mut *guard;
                 senders.push(writer_sender);
 
