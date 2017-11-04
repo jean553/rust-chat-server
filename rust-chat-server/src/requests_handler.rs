@@ -14,35 +14,6 @@ use std::sync::{
     Arc,
 };
 
-/// Shares a received message to all threads
-///
-/// # Arguments:
-///
-/// * `message` - the message posted by the client
-/// * `sender` - channel sender for communication between threads
-fn share_message(
-    message: &mut String,
-    sender: &mpsc::Sender<String>,
-) -> bool {
-
-    let message_to_send = format!(
-        "Client sent message: {}",
-        message,
-    );
-
-    match sender.send(message_to_send.to_string()) {
-        Ok(_) => {
-            message.clear();
-        },
-        Err(_) => {
-            println!("Error: cannot read message from client");
-            return false;
-        }
-    };
-
-    true
-}
-
 /// Handles received TCP requests
 ///
 /// # Arguments:
