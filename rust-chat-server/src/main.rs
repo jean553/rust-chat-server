@@ -16,24 +16,29 @@ mod requests_handler;
 
 fn main() {
 
+    /* create a TCP socket server, listening for connections */
     let listener = TcpListener::bind("0.0.0.0:9090").unwrap();
 
+    /* creation of a channel for messages transmission,
+       one sender can send messages to one receiver */
     let (sender, receiver): (
         Sender<String>,
         Receiver<String>
     ) = channel();
 
+    /* TODO: explanation */
     type Senders = Vec<Sender<String>>;
     let senders: Senders = Vec::new();
-    let mutex: Mutex<Senders> = Mutex::new(senders);
-    let first_senders_list: Arc<Mutex<Senders>> = Arc::new(mutex);
+    let senders_mutex: Mutex<Senders> = Mutex::new(senders);
+    let senders_list: Arc<Mutex<Senders>> = Arc::new(senders_mutex);
 
-    let second_senders_list = first_senders_list.clone();
+    /* TODO: explanation */
+    let senders_list_copy = senders_list.clone();
 
     spawn(|| {
         requests_handler::receive_messages(
             receiver,
-            first_senders_list,
+            senders_list,
         );
     });
 
@@ -71,7 +76,7 @@ fn main() {
                     Receiver<String>
                 ) = channel();
 
-                let mut guard = second_senders_list.lock().unwrap();
+                let mut guard = senders_list_copy.lock().unwrap();
                 let mut senders = &mut *guard;
                 senders.push(writer_sender);
 
