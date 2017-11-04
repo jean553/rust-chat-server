@@ -18,18 +18,15 @@ use std::sync::{
 ///
 /// # Arguments:
 ///
-/// * `client_id` - unique id of the handled client
 /// * `message` - the message posted by the client
 /// * `sender` - channel sender for communication between threads
 fn share_message(
-    client_id: u8,
     message: &mut String,
     sender: &mpsc::Sender<String>,
 ) -> bool {
 
     let message_to_send = format!(
-        "Client {} sent message: {}",
-        client_id,
+        "Client sent message: {}",
         message,
     );
 
@@ -38,11 +35,7 @@ fn share_message(
             message.clear();
         },
         Err(_) => {
-            println!(
-                "Error: cannot read message from client {}",
-                client_id,
-            );
-
+            println!("Error: cannot read message from client");
             return false;
         }
     };
@@ -55,15 +48,11 @@ fn share_message(
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
-/// * `client_id` - unique id of the handled client
 /// * `sender` - the sender to uses to forward the received message
 pub fn handle_request(
-    mut stream: TcpStream,
-    client_id: u8,
+    stream: TcpStream,
     sender: mpsc::Sender<String>,
 ) {
-    stream.write("Welcome to rust-chat-server\n".as_bytes()).unwrap();
-
     let mut buffer = BufReader::new(stream);
     let mut message = String::new();
 
@@ -85,7 +74,6 @@ pub fn handle_request(
                     Some(&_) => {
 
                         let shared = share_message(
-                            client_id,
                             &mut message,
                             &sender,
                         );
@@ -98,10 +86,7 @@ pub fn handle_request(
             }
             _ => {
 
-                println!(
-                    "Error: cannot read request from client {}",
-                    client_id,
-                );
+                println!("Error: cannot read request from client");
 
                 break;
             }
@@ -109,35 +94,45 @@ pub fn handle_request(
     }
 }
 
-/// Started by an independant thread that listens
-/// for new messages and sends them to every thread
+/// Run by an unique thread started at the launch of the program.
+/// Continuously listens for connections from the receiver
+/// and forward it to every senders of the senders list (one per client)
 ///
 /// # Arguments:
 ///
 /// * `receiver` - Channel receiver to get messages
-/// * `senders_arc` - Atomic reference-counting pointer for the senders array
+/// * `senders_mutex_pointer` - Atomic reference-counting pointer for the senders array
 pub fn receive_messages(
     receiver: mpsc::Receiver<String>,
-    senders_arc: Arc<Mutex<Vec<mpsc::Sender<String>>>>,
+    senders_mutex_pointer: Arc<Mutex<Vec<mpsc::Sender<String>>>>,
 ) {
 
     loop {
-        let message = receiver.recv(); // blocking IO
 
-        match message {
-            Ok(value) => {
+        /* blocking listening procedure for incoming messages */
+        let message_result = receiver.recv();
 
-                let guard = senders_arc.lock().unwrap();
-                let senders = &*guard;
-
-                for sender in senders {
-                    sender.send(value.to_string()).expect("cannot send messages");
-                }
-            }
-            Err(_) => {
-            }
+        /* ignore the message if this is an error result object */
+        if message_result.is_err() {
+            continue;
         }
 
+        /* acquires the senders mutex, blocks until it is available */
+        let guard = senders_mutex_pointer.lock().unwrap();
+
+        /* create a reference to the senders list, first access it through
+           the pointer and then creates a reference to this array */
+        let senders = &*guard;
+
+        /* get the message from the receiver result */
+        let message = message_result.unwrap();
+
+        /* send the message to every senders into the senders array
+           (send the message to every client) */
+        for sender in senders {
+            sender.send(message.to_string())
+                .expect("cannot send message");
+        }
     }
 }
 
