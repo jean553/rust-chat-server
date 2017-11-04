@@ -16,7 +16,7 @@ use std::sync::mpsc::{
 
 use requests_handler::{
     receive_messages,
-    handle_request,
+    handle_sent_messages,
     send_to_client,
 };
 
@@ -92,7 +92,8 @@ fn main() {
             client_address,
         );
 
-        /* TODO: explain why */
+        /* the new client stream is copied
+           as it is passed to two different threads */
         let stream_copy = stream.try_clone()
             .expect("Cannot clone TCP stream");
 
@@ -101,9 +102,9 @@ fn main() {
            this new sender is also part of the unique receiver channel */
         let sender_copy = sender.clone();
 
-        /* TODO: explain */
+        /* create a thread that handles sent messages from the new client */
         spawn(|| {
-            handle_request(
+            handle_sent_messages(
                 stream_copy,
                 sender_copy,
             );

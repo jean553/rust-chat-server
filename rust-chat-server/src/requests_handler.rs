@@ -14,13 +14,14 @@ use std::sync::{
     Arc,
 };
 
-/// Handles received TCP requests
+/// Run by threads created at each client connection. Handles the sent messages by one client. 
+/// There is one thread per client.
 ///
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
-/// * `sender` - the sender to uses to forward the received message
-pub fn handle_request(
+/// * `sender` - the sender to use to forward the received message
+pub fn handle_sent_messages(
     stream: TcpStream,
     sender: mpsc::Sender<String>,
 ) {
@@ -51,6 +52,10 @@ pub fn handle_request(
             break;
         }
 
+        /* attempt to send the message through the current client sender;
+           as the sender is part of the senders dynamic array
+           created from one unique receiver, the messages sent by every client
+           all go to this unique receiver for forward */
         let send_message = sender.send(message.to_string());
         if send_message.is_err() {
             break;
