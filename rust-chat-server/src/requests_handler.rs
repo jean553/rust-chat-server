@@ -107,7 +107,10 @@ pub fn receive_messages(
     }
 }
 
-/// Sends received messages to all the clients
+/// Run by threads created at each client connection.
+/// Each thread has a receiver that waits for data
+/// send by the client sender from the senders dynamic array;
+/// the thread forward the message into the client dedicated stream
 ///
 /// # Arguments:
 ///
@@ -119,15 +122,19 @@ pub fn send_to_client(
 ) {
 
     loop {
-        let message = receiver.recv(); // blocking IO
 
-        match message {
-            Ok(value) => {
-                stream.write(value.as_bytes()).unwrap();
-            }
-            Err(_) => {
-            }
+        /* the client receiver listens for messages,
+           this is a blocking IO */
+        let message_result = receiver.recv();
+
+        if message_result.is_err() {
+            continue;
         }
 
+        /* the message is pushed into the dedicated client stream
+           so the client can receive it */
+        let message = message_result.unwrap();
+        let message_bytes = message.as_bytes();
+        stream.write(message_bytes).unwrap();
     }
 }
