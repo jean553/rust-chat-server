@@ -1,5 +1,7 @@
 //! Basic TCP server
 
+mod requests_handler;
+
 use std::net::TcpListener;
 use std::thread::spawn;
 use std::sync::{
@@ -12,7 +14,11 @@ use std::sync::mpsc::{
     channel,
 };
 
-mod requests_handler;
+use requests_handler::{
+    receive_messages,
+    handle_request,
+    send_to_client,
+};
 
 fn main() {
 
@@ -57,7 +63,7 @@ fn main() {
     /* create a thread that listens for all incoming messages
        and forward them to every connected clients */
     spawn(|| {
-        requests_handler::receive_messages(
+        receive_messages(
             receiver,
             senders_mutex_pointer,
         );
@@ -82,7 +88,7 @@ fn main() {
                     .expect("Cannot clone TCP stream");
 
                 spawn(move || {
-                    requests_handler::handle_request(
+                    handle_request(
                         stream,
                         clients_count,
                         sender,
@@ -102,7 +108,7 @@ fn main() {
                 senders.push(writer_sender);
 
                 spawn(|| {
-                    requests_handler::send_to_client(
+                    send_to_client(
                         other_stream,
                         writer_receiver,
                     );
