@@ -14,83 +14,54 @@ use std::sync::{
     Arc,
 };
 
-/// Shares a received message to all threads
-///
-/// # Arguments:
-///
-/// * `message` - the message posted by the client
-/// * `sender` - channel sender for communication between threads
-fn share_message(
-    message: &mut String,
-    sender: &mpsc::Sender<String>,
-) -> bool {
-
-    let message_to_send = format!(
-        "Client sent message: {}",
-        message,
-    );
-
-    match sender.send(message_to_send.to_string()) {
-        Ok(_) => {
-            message.clear();
-        },
-        Err(_) => {
-            println!("Error: cannot read message from client");
-            return false;
-        }
-    };
-
-    true
-}
-
-/// Handles received TCP requests
+/// Run by threads created at each client connection. Handles the sent messages by one client. 
+/// There is one thread per client.
 ///
 /// # Arguments:
 ///
 /// * `stream` - TCP stream between the server and the new connected client
-/// * `sender` - the sender to uses to forward the received message
-pub fn handle_request(
+/// * `sender` - the sender to use to forward the received message
+pub fn handle_sent_messages(
     stream: TcpStream,
     sender: mpsc::Sender<String>,
 ) {
+    /* create a buffer in order to read data sent through the stream;
+       in other words, the data sent by the client attached to this stream */
     let mut buffer = BufReader::new(stream);
+
     let mut message = String::new();
 
     loop {
 
-        let request = buffer.read_line(&mut message); // blocking IO
+        /* blocking step to read data from the client stream */
+        let request = buffer.read_line(&mut message);
 
-        match request {
-            Ok(_) => {
-
-                let message_bytes = message.clone();
-                let bytes = message_bytes.as_bytes();
-
-                const END_OF_LINE: u8 = 10;
-                match bytes.get(0) {
-                    Some(&END_OF_LINE) | None => {
-                        break;
-                    },
-                    Some(&_) => {
-
-                        let shared = share_message(
-                            &mut message,
-                            &sender,
-                        );
-
-                        if !shared {
-                            break;
-                        }
-                    }
-                };
-            }
-            _ => {
-
-                println!("Error: cannot read request from client");
-
-                break;
-            }
+        if request.is_err() {
+            continue;
         }
+
+        /* get message as bytes slice in order to check
+           what character exactly has been sent */
+        let message_copy = message.clone();
+        let message_bytes = message_copy.as_bytes();
+
+        /* ignore the message if the first character
+           is a carriage return */
+        const END_OF_LINE: u8 = 10;
+        if message_bytes.get(0) == Some(&END_OF_LINE) {
+            break;
+        }
+
+        /* attempt to send the message through the current client sender;
+           as the sender is part of the senders dynamic array
+           created from one unique receiver, the messages sent by every client
+           all go to this unique receiver for forward */
+        let send_message = sender.send(message.to_string());
+        if send_message.is_err() {
+            break;
+        }
+
+        message.clear();
     }
 }
 
@@ -136,7 +107,10 @@ pub fn receive_messages(
     }
 }
 
-/// Sends received messages to all the clients
+/// Run by threads created at each client connection.
+/// Each thread has a receiver that waits for data
+/// send by the client sender from the senders dynamic array;
+/// the thread forward the message into the client dedicated stream
 ///
 /// # Arguments:
 ///
@@ -148,15 +122,19 @@ pub fn send_to_client(
 ) {
 
     loop {
-        let message = receiver.recv(); // blocking IO
 
-        match message {
-            Ok(value) => {
-                stream.write(value.as_bytes()).unwrap();
-            }
-            Err(_) => {
-            }
+        /* the client receiver listens for messages,
+           this is a blocking IO */
+        let message_result = receiver.recv();
+
+        if message_result.is_err() {
+            continue;
         }
 
+        /* the message is pushed into the dedicated client stream
+           so the client can receive it */
+        let message = message_result.unwrap();
+        let message_bytes = message.as_bytes();
+        stream.write(message_bytes).unwrap();
     }
 }

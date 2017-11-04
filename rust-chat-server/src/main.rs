@@ -16,7 +16,7 @@ use std::sync::mpsc::{
 
 use requests_handler::{
     receive_messages,
-    handle_request,
+    handle_sent_messages,
     send_to_client,
 };
 
@@ -92,7 +92,8 @@ fn main() {
             client_address,
         );
 
-        /* TODO: explain why */
+        /* the new client stream is copied
+           as it is passed to two different threads */
         let stream_copy = stream.try_clone()
             .expect("Cannot clone TCP stream");
 
@@ -101,31 +102,44 @@ fn main() {
            this new sender is also part of the unique receiver channel */
         let sender_copy = sender.clone();
 
-        /* TODO: explain */
+        /* create a thread that handles sent messages from the new client */
         spawn(|| {
-            handle_request(
+            handle_sent_messages(
                 stream_copy,
                 sender_copy,
             );
         });
 
+        /* create one new sender/receiver couple by client;
+           the sender gets the data from the global receiver
+           and sends it to each client dedicated receiver */
         let (
-            writer_sender,
-            writer_receiver
+            client_sender,
+            client_receiver
         ): (
             Sender<String>,
             Receiver<String>
         ) = channel();
 
-        let mut guard = senders_mutex_pointer_copy.lock().unwrap();
-        let mut senders = &mut *guard;
-        senders.push(writer_sender);
-
+        /* create one thread per client that has one receiver per sender
+           into the senders dynamic array; every thread takes the value
+           from the receiver and inserts it into the client stream */
         spawn(|| {
             send_to_client(
                 stream,
-                writer_receiver,
+                client_receiver,
             );
         });
+
+        /* acquires the senders mutex, blocks until it is available */
+        let mut guard = senders_mutex_pointer_copy.lock().unwrap();
+
+        /* create a reference to the senders list, first access it through
+           the pointer and then creates a reference to this array */
+        let mut senders = &mut *guard;
+
+        /* the dedicated client sender is added to the list of senders 
+           used by the global receiver to forward messages */
+        senders.push(client_sender);
     }
 }
