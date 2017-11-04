@@ -24,44 +24,39 @@ pub fn handle_request(
     stream: TcpStream,
     sender: mpsc::Sender<String>,
 ) {
+    /* create a buffer in order to read data sent through the stream;
+       in other words, the data sent by the client attached to this stream */
     let mut buffer = BufReader::new(stream);
+
     let mut message = String::new();
 
     loop {
 
-        let request = buffer.read_line(&mut message); // blocking IO
+        /* blocking step to read data from the client stream */
+        let request = buffer.read_line(&mut message);
 
-        match request {
-            Ok(_) => {
-
-                let message_bytes = message.clone();
-                let bytes = message_bytes.as_bytes();
-
-                const END_OF_LINE: u8 = 10;
-                match bytes.get(0) {
-                    Some(&END_OF_LINE) | None => {
-                        break;
-                    },
-                    Some(&_) => {
-
-                        let shared = share_message(
-                            &mut message,
-                            &sender,
-                        );
-
-                        if !shared {
-                            break;
-                        }
-                    }
-                };
-            }
-            _ => {
-
-                println!("Error: cannot read request from client");
-
-                break;
-            }
+        if request.is_err() {
+            continue;
         }
+
+        /* get message as bytes slice in order to check
+           what character exactly has been sent */
+        let message_copy = message.clone();
+        let message_bytes = message_copy.as_bytes();
+
+        /* ignore the message if the first character
+           is a carriage return */
+        const END_OF_LINE: u8 = 10;
+        if message_bytes.get(0) == Some(&END_OF_LINE) {
+            break;
+        }
+
+        let send_message = sender.send(message.to_string());
+        if send_message.is_err() {
+            break;
+        }
+
+        message.clear();
     }
 }
 
