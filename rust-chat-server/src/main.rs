@@ -26,15 +26,33 @@ fn main() {
         Receiver<String>
     ) = channel();
 
-    /* TODO: explanation */
+    /* create a dynamic array of senders for string messages,
+       one sender per client */
     type Senders = Vec<Sender<String>>;
     let senders: Senders = Vec::new();
+
+    /* there is one global receiver that listen for messages from any client
+       and there is a dynamic list of senders for every client,
+       in order to forward messages to each client;
+       the senders list is part of the main thread in order to create a new sender
+       everytime a new client connects and it is also part of the thread
+       that receive and forward messages to each client;
+       the senders dynamic array is shared between threads, in order to prevent
+       concurrent access, we protect it into a mutex */
     let senders_mutex: Mutex<Senders> = Mutex::new(senders);
+
+    /* the senders array is shared between threads; in order to access it 
+       from multiple threads, we simply put the mutex into an atomically
+       reference counted pointer; Arc<T> provides thread-safe shared ownership
+       of the passed data; it can be copied through threads and always point
+       to the same heap memory */
     let senders_list: Arc<Mutex<Senders>> = Arc::new(senders_mutex);
 
     /* TODO: explanation */
     let senders_list_copy = senders_list.clone();
 
+    /* create a thread that listens for all incoming messages
+       and forward them to every connected clients */
     spawn(|| {
         requests_handler::receive_messages(
             receiver,
