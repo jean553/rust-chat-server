@@ -3,9 +3,13 @@
 use std::net::TcpListener;
 use std::thread::spawn;
 use std::sync::{
-    mpsc,
     Mutex,
     Arc,
+};
+use std::sync::mpsc::{
+    Sender,
+    Receiver,
+    channel,
 };
 
 mod requests_handler;
@@ -14,15 +18,12 @@ fn main() {
 
     let listener = TcpListener::bind("0.0.0.0:9090").unwrap();
 
-    let mut clients_count: u8 = 0;
-
     let (sender, receiver): (
-        mpsc::Sender<String>,
-        mpsc::Receiver<String>
-    ) = mpsc::channel();
+        Sender<String>,
+        Receiver<String>
+    ) = channel();
 
-    type Senders = Vec<mpsc::Sender<String>>;
-
+    type Senders = Vec<Sender<String>>;
     let senders: Senders = Vec::new();
     let mutex: Mutex<Senders> = Mutex::new(senders);
     let first_senders_list: Arc<Mutex<Senders>> = Arc::new(mutex);
@@ -35,6 +36,8 @@ fn main() {
             first_senders_list,
         );
     });
+
+    let mut clients_count = 0;
 
     for income in listener.incoming() {
 
@@ -64,9 +67,9 @@ fn main() {
                     writer_sender,
                     writer_receiver
                 ): (
-                    mpsc::Sender<String>,
-                    mpsc::Receiver<String>
-                ) = mpsc::channel();
+                    Sender<String>,
+                    Receiver<String>
+                ) = channel();
 
                 let mut guard = second_senders_list.lock().unwrap();
                 let mut senders = &mut *guard;
