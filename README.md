@@ -2,7 +2,7 @@
 
 # rust-chat-server
 
-![Image 1](screenshot.png)
+![Image 1](schema.png)
 
 NOTE: The code contains a lot of comments explaining how the server works.
 
