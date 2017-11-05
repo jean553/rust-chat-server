@@ -2,6 +2,8 @@
 
 # rust-chat-server
 
+![Image 1](screenshot.png)
+
 NOTE: The code contains a lot of comments explaining how the server works.
 
 ## Installation
